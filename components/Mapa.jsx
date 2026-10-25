@@ -8,6 +8,7 @@ import { interpolateYlGn } from 'd3-scale-chromatic';
 import { feature } from 'topojson-client';
 import atlas from 'world-atlas/countries-50m.json';
 import { paises, CONTINENTES, porIso, stats } from '@/lib/paises';
+import { useI18n } from './I18n';
 
 // Se calcula una sola vez al cargar el módulo
 const trazar = geoPath(geoNaturalEarth1().fitSize([960, 500], { type: 'Sphere' }));
@@ -19,6 +20,7 @@ const color = pct => (pct === 0 ? 'var(--vacio)' : interpolateYlGn(0.25 + 0.75 *
 const degradado = 'linear-gradient(to right,' + [0.05, 0.25, 0.5, 0.75, 1].map(p => color(p)).join(',') + ')';
 
 export default function Mapa({ marcados, onPais, diaP }) {
+  const { tr, nombrePais, nombreCont } = useI18n();
   const svgRef = useRef(null);
   const gRef = useRef(null);
   const zoomRef = useRef(null);
@@ -69,14 +71,14 @@ export default function Mapa({ marcados, onPais, diaP }) {
 
   const p = tip && porIso[tip.c.id];
   const s = p && stats(p, marcados);
-  const lst = a => (a.length ? a.slice(0, 14).join(', ') + (a.length > 14 ? '…' : '') : '✓ completo');
+  const lst = a => (a.length ? a.slice(0, 14).join(', ') + (a.length > 14 ? '…' : '') : tr('completo'));
 
   return (
     <div id="mapa">
       <div id="conts">
         {conts.map(x => (
           <div className="cp" key={x.c}>
-            <span>{x.c}</span><b>{x.g}/{x.t}</b>
+            <span>{nombreCont(x.c)}</span><b>{x.g}/{x.t}</b>
             <div className="bar"><i style={{ width: (x.t ? (x.g / x.t) * 100 : 0) + '%' }} /></div>
           </div>
         ))}
@@ -89,7 +91,7 @@ export default function Mapa({ marcados, onPais, diaP }) {
       </div>
 
       <div id="leyenda">
-        <i className="sw dia" /><span>Hoy</span>
+        <i className="sw dia" /><span>{tr('hoy')}</span>
         <span>0 %</span><i className="sw" />
         <i id="grad" style={{ background: degradado }} />
         <span>100 %</span>
@@ -111,10 +113,10 @@ export default function Mapa({ marcados, onPais, diaP }) {
         <div id="tip" style={{ left: Math.min(tip.x + 14, innerWidth - 290), top: tip.y + 14 }}>
           {p ? (
             <>
-              <b>{p.nombre}: {s.g}/{s.t} (faltan {s.t - s.g})</b>
-              Monedas que faltan: {lst(s.fm)}<br />Billetes que faltan: {lst(s.fb)}
+              <b>{nombrePais(p)}: {s.g}/{s.t} ({tr('faltan', { n: s.t - s.g })})</b>
+              {tr('mon_faltan')}{lst(s.fm)}<br />{tr('bil_faltan')}{lst(s.fb)}
             </>
-          ) : (<><b>{tip.c.nombre}</b>Sin datos</>)}
+          ) : (<><b>{tip.c.nombre}</b>{tr('sin_datos')}</>)}
         </div>
       )}
     </div>

@@ -12,17 +12,22 @@ import Duplicados from '@/components/Duplicados';
 import PaisDelDia from '@/components/PaisDelDia';
 import Ficha from '@/components/Ficha';
 import VolverArriba from '@/components/VolverArriba';
+import NotaDialog from '@/components/NotaDialog';
+import { useI18n } from '@/components/I18n';
+import { IDIOMAS } from '@/lib/i18n';
 
 const norm = s => s.normalize('NFD').replace(/[\u0300-\u036f]/g, '').toLowerCase();
 const T = paises.reduce((a, p) => a + p.items.length, 0);   // total de piezas: no cambia nunca
 
 export default function Home() {
   const col = useColeccion();
+  const { idioma, cambiar, tr, lg, nombrePais } = useI18n();
   const [tab, setTab] = useState('coleccion');
   const [solo, setSolo] = useState(false);
   const [q, setQ] = useState('');
   const [diaP, setDiaP] = useState(paisDelDia);
   const [ficha, setFicha] = useState(null);
+  const [nota, setNota] = useState(null);
   const [aviso, setAviso] = useState('');
   const fileRef = useRef(null);
   const qRef = useRef(null);
@@ -63,7 +68,8 @@ export default function Home() {
   const buscar = () => {
     const t = norm(q.trim());
     if (!t) return;
-    const p = paises.find(x => norm(x.nombre) === t) || paises.find(x => norm(x.nombre).includes(t));
+    const coincide = (x, exacto) => [x.nombre, nombrePais(x)].some(n => (exacto ? norm(n) === t : norm(n).includes(t)));
+    const p = paises.find(x => coincide(x, true)) || paises.find(x => coincide(x, false));
     if (p) ir(p);
   };
 
@@ -76,7 +82,7 @@ export default function Home() {
     if (previo !== null) {   // la primera vez solo guarda, sin avisar
       const antes = JSON.parse(previo);
       ahora.filter(n => !antes.includes(n))
-        .forEach((n, i) => setTimeout(() => avisar('🏆 Logro desbloqueado: ' + n), i * 2500));
+        .forEach((n, i) => setTimeout(() => avisar(tr('logro_ava') + lg(logros.findIndex(l => l.n === n))[0]), i * 2500));
     }
     localStorage.setItem('logros', JSON.stringify(ahora));
   }, [logros, col.listo]);
@@ -115,7 +121,7 @@ export default function Home() {
 
   // ---------- Exportar / importar ----------
   const exportar = () => {
-    const blob = new Blob([JSON.stringify({ version: 2, marcados: col.marcados, extra: col.extra }, null, 2)],
+    const blob = new Blob([JSON.stringify({ version: 3, marcados: col.marcados, extra: col.extra, notas: col.notas }, null, 2)],
       { type: 'application/json' });
     const a = document.createElement('a');
     a.href = URL.createObjectURL(blob);
@@ -131,43 +137,46 @@ export default function Home() {
       if (!d || typeof d !== 'object' || Array.isArray(d)) throw new Error('formato');
       col.importar(d);
     } catch {
-      alert('El archivo no es una colección válida');
+      alert(tr('imp_error'));
     }
     e.target.value = '';
   };
 
-  if (!col.listo) return <p style={{ padding: 16 }}>Cargando…</p>;
+  if (!col.listo) return <p style={{ padding: 16 }}>{tr('f_cargando')}</p>;
 
   const G = paises.reduce((a, p) => a + stats(p, col.marcados).g, 0);
   const okN = logros.filter(l => l.ok).length;
   const TABS = [
-    ['coleccion', 'Colección'],
-    ['historial', 'Historial'],
-    ['logros', `Logros (${okN}/${logros.length})`],
-    ['duplicados', 'Duplicados'],
+    ['coleccion', tr('t_col')],
+    ['historial', tr('t_his')],
+    ['logros', `${tr('t_log')} (${okN}/${logros.length})`],
+    ['duplicados', tr('t_dup')],
   ];
 
   return (
     <>
       <header>
-        <h1>🪙 Mi colección</h1>
-        <input id="q" ref={qRef} list="paises" value={q} placeholder="Buscar país… ( / )"
+        <h1>🪙 {tr('titulo')}</h1>
+        <input id="q" ref={qRef} list="paises" value={q} placeholder={tr('buscar')}
                onChange={e => setQ(e.target.value)}
                onKeyDown={e => e.key === 'Enter' && buscar()} />
-        <datalist id="paises">{paises.map(p => <option key={p.id} value={p.nombre} />)}</datalist>
+        <datalist id="paises">{paises.map(p => <option key={p.id} value={nombrePais(p)} />)}</datalist>
         <label className="solo">
           <input type="checkbox" checked={solo} onChange={e => cambiarSolo(e.target.checked)} />
-          Solo los que faltan <span id="pend">({(T - G).toLocaleString('es-ES')})</span>
+          {tr('solo')} <span id="pend">({(T - G).toLocaleString('es-ES')})</span>
         </label>
-        <span id="tot">{G} de {T} piezas ({((G / T) * 100).toFixed(1)}%)</span>
-        <button onClick={cambiarTema} title="Cambiar tema">🌓</button>
-        <button onClick={exportar}>⬇ Exportar</button>
-        <button onClick={() => fileRef.current.click()}>⬆ Importar</button>
-        <button onClick={() => window.print()} title="Imprimir lo que me falta">🖨 Imprimir</button>
+        <span id="tot">{tr('tot', { g: G, t: T, p: ((G / T) * 100).toFixed(1) })}</span>
+        <button className="tema" onClick={cambiarTema} title={tr('tema')}>🌓</button>
+        <button onClick={exportar}>{tr('exp')}</button>
+        <button onClick={() => fileRef.current.click()}>{tr('imp')}</button>
+        <button onClick={() => window.print()}>{tr('imprimir')}</button>
+        <select id="idioma" value={idioma} title={tr('idioma')} onChange={e => cambiar(e.target.value)}>
+          {Object.entries(IDIOMAS).map(([c, n]) => <option key={c} value={c}>{n}</option>)}
+        </select>
         <input ref={fileRef} type="file" accept=".json" hidden onChange={importar} />
       </header>
 
-      <div id="ptitulo">Mi colección: piezas que me faltan · {new Date().toLocaleDateString('es-ES')}</div>
+      <div id="ptitulo">{tr('imp_titulo')} · {new Date().toLocaleDateString(idioma)}</div>
 
       <main>
         <nav id="tabs">
@@ -182,7 +191,7 @@ export default function Home() {
                       onOtro={() => setDiaP(paises[Math.floor(Math.random() * paises.length)])} />
           <Mapa marcados={col.marcados} onPais={ir} diaP={diaP} />
           <div id="lista">
-            <Lista {...col} onInfo={(p, i) => setFicha({ p, i })} />
+            <Lista {...col} onInfo={(p, i) => setFicha({ p, i })} onNota={(p, i) => setNota({ p, i })} />
           </div>
         </section>
 
@@ -191,7 +200,8 @@ export default function Home() {
         {tab === 'duplicados' && <Duplicados marcados={col.marcados} extra={col.extra} onPais={ir} onAviso={avisar} />}
       </main>
 
-      <Ficha pieza={ficha} onCerrar={() => setFicha(null)} />
+      <Ficha pieza={ficha} notas={col.notas} onCerrar={() => setFicha(null)} />
+      <NotaDialog pieza={nota} notas={col.notas} onGuardar={col.guardarNota} onCerrar={() => setNota(null)} />
       {aviso && <div id="toast">{aviso}</div>}
       <VolverArriba />
     </>
