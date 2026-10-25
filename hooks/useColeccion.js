@@ -5,8 +5,9 @@ import { paises, COMPARTIDAS, claveDup } from '@/lib/paises';
 const KEY = 'coleccion-numismatica';
 
 export function useColeccion() {
-  const [marcados, setMarcados] = useState({});
-  const [extra, setExtra] = useState({});
+  const [marcados, setMarcados] = useState({});   // pieza -> fecha en que la marcaste
+  const [extra, setExtra] = useState({});         // pieza -> nº de copias repetidas
+  const [notas, setNotas] = useState({});         // pieza -> tu texto
   const [listo, setListo] = useState(false);
 
   // Leer localStorage solo en el navegador (en el servidor no existe)
@@ -14,6 +15,7 @@ export function useColeccion() {
     try {
       setMarcados(JSON.parse(localStorage.getItem(KEY) || '{}'));
       setExtra(JSON.parse(localStorage.getItem(KEY + '-extra') || '{}'));
+      setNotas(JSON.parse(localStorage.getItem(KEY + '-notas') || '{}'));
     } catch {}
     setListo(true);
   }, []);
@@ -23,7 +25,8 @@ export function useColeccion() {
     if (!listo) return;
     localStorage.setItem(KEY, JSON.stringify(marcados));
     localStorage.setItem(KEY + '-extra', JSON.stringify(extra));
-  }, [marcados, extra, listo]);
+    localStorage.setItem(KEY + '-notas', JSON.stringify(notas));
+  }, [marcados, extra, notas, listo]);
 
   const marcar = useCallback((p, i, on) => {
     const afectados = COMPARTIDAS.includes(p.cur) ? paises.filter(x => x.cur === p.cur) : [p];
@@ -41,6 +44,7 @@ export function useColeccion() {
       afectados.forEach(x => delete n[claveDup(x, i)]);
       return n;
     });
+    // Las notas NO se borran al desmarcar: tu historia no se pierde si te equivocas de casilla
   }, []);
 
   const cambiarDup = useCallback((p, i, delta) => {
@@ -54,10 +58,22 @@ export function useColeccion() {
     });
   }, [marcados]);
 
-  const importar = useCallback(datos => {
-    setMarcados(datos.marcados || datos);
-    setExtra(datos.extra || {});
+  // Texto vacío = borrar la nota
+  const guardarNota = useCallback((p, i, texto) => {
+    const k = claveDup(p, i);   // en el euro la nota es de la pieza, no de cada país
+    const v = texto.trim();
+    setNotas(prev => {
+      const n = { ...prev };
+      v ? (n[k] = v) : delete n[k];
+      return n;
+    });
   }, []);
 
-  return { marcados, extra, listo, marcar, cambiarDup, importar };
+  const importar = useCallback(datos => {
+    setMarcados(datos.marcados || datos);   // acepta también el formato antiguo
+    setExtra(datos.extra || {});
+    setNotas(datos.notas || {});
+  }, []);
+
+  return { marcados, extra, notas, listo, marcar, cambiarDup, guardarNota, importar };
 }
